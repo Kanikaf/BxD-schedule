@@ -284,10 +284,22 @@
     <div class="event-list" id="event-list"></div>
     <div class="section-divider">＋ イベントを追加</div>
     <div id="add-event-form">
-      <label>開始時間 (HH:MM)</label>
-      <input type="time" id="ev-start" placeholder="例: 20:00">
-      <label>終了時間 (HH:MM, 任意)</label>
-      <input type="time" id="ev-end" placeholder="未設定可">
+      <label>開始時間</label>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <select id="ev-start-h" style="width:auto;flex:1;"></select>
+        <span style="color:#a0c8e8;">時</span>
+        <select id="ev-start-m" style="width:auto;flex:1;"></select>
+        <span style="color:#a0c8e8;">分</span>
+        <button type="button" class="btn btn-gray" style="font-size:11px;padding:4px 8px;" onclick="clearTime('start')">なし</button>
+      </div>
+      <label>終了時間 (任意)</label>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <select id="ev-end-h" style="width:auto;flex:1;"></select>
+        <span style="color:#a0c8e8;">時</span>
+        <select id="ev-end-m" style="width:auto;flex:1;"></select>
+        <span style="color:#a0c8e8;">分</span>
+        <button type="button" class="btn btn-gray" style="font-size:11px;padding:4px 8px;" onclick="clearTime('end')">なし</button>
+      </div>
       <label>イベントアイコン</label>
       <select id="ev-icon"></select>
       <label>イベント名</label>
@@ -558,6 +570,7 @@ function openEventModal(w, d) {
   renderEventList();
   populateIconSelect();
   populateNameSelect();
+  initTimeSelects();
   clearAddForm();
   modal.classList.add('active');
 }
@@ -599,9 +612,9 @@ function startEditEvent(idx) {
   const key = `${currentCell.w}-${currentCell.d}`;
   const ev = (scheduleData[key]||[])[idx];
   if (!ev) return;
-  document.getElementById('ev-start').value = ev.start||'';
-  document.getElementById('ev-end').value = ev.end||'';
   document.getElementById('ev-sub').value = ev.sub||'';
+  setTimeVal('start', ev.start||'');
+  setTimeVal('end', ev.end||'');
   // set icon select
   const iconSel = document.getElementById('ev-icon');
   const nameSel = document.getElementById('ev-name');
@@ -624,10 +637,49 @@ function deleteEvent(idx) {
   if (td) renderCellContent(td, currentCell.w, currentCell.d);
 }
 
+function getTimeVal(prefix) {
+  const h = document.getElementById(`ev-${prefix}-h`).value;
+  const m = document.getElementById(`ev-${prefix}-m`).value;
+  if (h === '') return '';
+  return `${h}:${m}`;
+}
+function setTimeVal(prefix, val) {
+  const hSel = document.getElementById(`ev-${prefix}-h`);
+  const mSel = document.getElementById(`ev-${prefix}-m`);
+  if (!val) { hSel.value = ''; mSel.value = '00'; return; }
+  const [h, m] = val.split(':');
+  hSel.value = h;
+  mSel.value = m || '00';
+}
+function clearTime(prefix) {
+  document.getElementById(`ev-${prefix}-h`).value = '';
+  document.getElementById(`ev-${prefix}-m`).value = '00';
+}
+function initTimeSelects() {
+  ['start','end'].forEach(prefix => {
+    const hSel = document.getElementById(`ev-${prefix}-h`);
+    const mSel = document.getElementById(`ev-${prefix}-m`);
+    hSel.innerHTML = '<option value="">--</option>';
+    for (let h = 0; h < 24; h++) {
+      const opt = document.createElement('option');
+      opt.value = String(h).padStart(2,'0');
+      opt.textContent = String(h).padStart(2,'0');
+      hSel.appendChild(opt);
+    }
+    mSel.innerHTML = '';
+    for (let m = 0; m < 60; m += 5) {
+      const opt = document.createElement('option');
+      opt.value = String(m).padStart(2,'0');
+      opt.textContent = String(m).padStart(2,'0');
+      mSel.appendChild(opt);
+    }
+  });
+}
+
 function addEventToCell() {
   const key = `${currentCell.w}-${currentCell.d}`;
-  const start = document.getElementById('ev-start').value;
-  const end = document.getElementById('ev-end').value;
+  const start = getTimeVal('start');
+  const end = getTimeVal('end');
   const sub = document.getElementById('ev-sub').value;
   const idx = parseInt(document.getElementById('ev-name').value);
   const all = allEvents();
@@ -669,8 +721,8 @@ function addEventToCell() {
 }
 
 function clearAddForm() {
-  document.getElementById('ev-start').value = '';
-  document.getElementById('ev-end').value = '';
+  clearTime('start');
+  clearTime('end');
   document.getElementById('ev-sub').value = '';
   editEventIdx = null;
 }
