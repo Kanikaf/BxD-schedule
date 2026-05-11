@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BxD スケジュール作成</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Meiryo', sans-serif;
+    background: #1a2a3a;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+  }
+
+  /* ===== TOOLBAR ===== */
+  #toolbar {
+    width: 100%;
+    max-width: 960px;
+    background: #1e3a5f;
+    border: 1px solid #3a6ea0;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  #toolbar label { color: #a0d4ff; font-size: 13px; white-space: nowrap; }
+  #toolbar input[type=date] {
+    background: #0d2540; color: #fff; border: 1px solid #3a6ea0;
+    border-radius: 4px; padding: 4px 8px; font-size: 13px;
+  }
+  .btn {
+    padding: 6px 14px; border: none; border-radius: 5px; cursor: pointer;
+    font-size: 13px; font-weight: bold; transition: all 0.15s;
+  }
+  .btn-blue { background: #2563eb; color: #fff; }
+  .btn-blue:hover { background: #1d4ed8; }
+  .btn-green { background: #16a34a; color: #fff; }
+  .btn-green:hover { background: #15803d; }
+  .btn-orange { background: #ea580c; color: #fff; }
+  .btn-orange:hover { background: #c2410c; }
+  .btn-gray { background: #475569; color: #fff; }
+  .btn-gray:hover { background: #334155; }
+  .btn-purple { background: #7c3aed; color: #fff; }
+  .btn-purple:hover { background: #6d28d9; }
+  #date-warning { color: #fbbf24; font-size: 12px; }
+
+  /* ===== SCHEDULE WRAPPER ===== */
+  #schedule-wrapper {
+    width: 100%;
+    max-width: 960px;
+    position: relative;
+  }
+
+  /* Screenshot guide overlay */
+  #screenshot-guide {
+    display: none;
+    position: absolute;
+    inset: -4px;
+    border: 3px dashed #fbbf24;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 100;
+  }
+  #screenshot-guide::after {
+    content: '📸 この枠内をスクショ';
+    position: absolute;
+    top: -28px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #fbbf24;
+    color: #000;
+    font-size: 13px;
+    font-weight: bold;
+    padding: 2px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  /* ===== SCHEDULE TABLE ===== */
+  #schedule {
+    background: linear-gradient(180deg, #0b1e35 0%, #0d2a47 100%);
+    border: 2px solid #3a6ea0;
+    border-radius: 6px;
+    padding: 8px;
+    width: 100%;
+  }
+
+  .schedule-title {
+    text-align: center;
+    color: #e0f0ff;
+    font-size: 22px;
+    font-weight: bold;
+    letter-spacing: 4px;
+    padding: 6px 0 10px;
+    text-shadow: 0 0 10px #4af;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  /* Header row */
+  thead th {
+    padding: 5px 2px;
+    font-size: 13px;
+    font-weight: bold;
+    text-align: center;
+    border: 1px solid #2a4a6a;
+  }
+  thead th.th-weekday { background: #1a4a8a; color: #d0e8ff; }
+  thead th.th-sat { background: #1a5a3a; color: #b0ffcc; }
+  thead th.th-sun { background: #6a1a1a; color: #ffb0b0; }
+
+  /* Date row */
+  .date-row td {
+    padding: 3px 4px;
+    font-size: 12px;
+    font-weight: bold;
+    text-align: left;
+    border: 1px solid #2a4a6a;
+    vertical-align: top;
+  }
+  .date-row .date-weekday { background: #0d2540; color: #90c8ff; }
+  .date-row .date-sat { background: #0d3020; color: #80ffaa; }
+  .date-row .date-sun { background: #3a0d0d; color: #ff9090; }
+
+  /* Event cells */
+  .event-row td {
+    border: 1px solid #2a4a6a;
+    vertical-align: top;
+    padding: 2px;
+    cursor: pointer;
+    min-height: 60px;
+    position: relative;
+  }
+  .event-row .cell-weekday { background: #0a1e36; }
+  .event-row .cell-weekday:hover { background: #112840; }
+  .event-row .cell-sat { background: #0a2218; }
+  .event-row .cell-sat:hover { background: #112e22; }
+  .event-row .cell-sun { background: #2a0a0a; }
+  .event-row .cell-sun:hover { background: #3a1010; }
+
+  .event-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 1px 2px;
+    margin-bottom: 2px;
+    font-size: 10px;
+    line-height: 1.3;
+  }
+  .event-icon { font-size: 14px; flex-shrink: 0; line-height: 1; }
+  .event-text { color: #e0f0ff; }
+  .event-time { color: #80c8ff; font-size: 9px; }
+  .event-name { color: #e8f4ff; }
+  .event-sub { color: #90aacc; font-size: 9px; }
+
+  .cell-add-hint {
+    color: #304860;
+    font-size: 9px;
+    text-align: center;
+    padding-top: 4px;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /* ===== MODAL ===== */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    justify-content: center;
+    align-items: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: #0d2540;
+    border: 2px solid #3a6ea0;
+    border-radius: 10px;
+    padding: 16px;
+    width: 92%;
+    max-width: 480px;
+    max-height: 90vh;
+    overflow-y: auto;
+    color: #e0f0ff;
+  }
+  .modal h3 { font-size: 15px; margin-bottom: 12px; color: #80d0ff; }
+  .modal label { font-size: 12px; color: #a0c8e8; display: block; margin-bottom: 2px; margin-top: 8px; }
+  .modal input, .modal select {
+    width: 100%; padding: 6px 8px; background: #071828;
+    border: 1px solid #2a5070; border-radius: 5px; color: #e0f0ff; font-size: 13px;
+  }
+  .modal-btn-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .event-list { margin-bottom: 10px; }
+  .event-list-item {
+    display: flex; align-items: center; gap: 6px;
+    background: #071828; border: 1px solid #2a5070;
+    border-radius: 5px; padding: 5px 8px; margin-bottom: 5px;
+    font-size: 12px;
+  }
+  .event-list-item .icon { font-size: 16px; }
+  .event-list-item .info { flex: 1; }
+  .event-list-item .del-btn {
+    background: #7f1d1d; border: none; color: #ffaaaa;
+    border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 12px;
+  }
+  .event-list-item .edit-btn {
+    background: #1e3a6a; border: none; color: #aad0ff;
+    border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 12px;
+  }
+  .section-divider {
+    border-top: 1px solid #2a4a6a; margin: 12px 0 8px;
+    padding-top: 8px; color: #60a0cc; font-size: 12px; font-weight: bold;
+  }
+
+  /* ===== TEMPLATE MODAL ===== */
+  #template-list .tpl-item {
+    background: #071828; border: 1px solid #2a5070; border-radius: 5px;
+    padding: 6px 10px; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px; font-size: 12px;
+  }
+  #template-list .tpl-item .tpl-info { flex: 1; }
+  #template-list .tpl-item .tpl-name { color: #a0d4ff; font-weight: bold; }
+  #template-list .tpl-item .tpl-events { color: #90a0b0; }
+
+  /* ===== CUSTOM EVENT REGISTER ===== */
+  #custom-event-list .ce-item {
+    display: flex; align-items: center; gap: 6px;
+    background: #071828; border: 1px solid #2a5070;
+    border-radius: 5px; padding: 5px 8px; margin-bottom: 5px; font-size: 12px;
+  }
+  #custom-event-list .ce-item .icon { font-size: 16px; }
+  #custom-event-list .ce-item .ce-name { flex: 1; color: #e0f0ff; }
+  #custom-event-list .ce-item .ce-del {
+    background: #7f1d1d; border: none; color: #ffaaaa;
+    border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<div id="toolbar">
+  <label>開始月曜日:
+    <input type="date" id="start-date">
+  </label>
+  <span id="date-warning"></span>
+  <button class="btn btn-blue" onclick="openTemplateModal()">📋 テンプレ</button>
+  <button class="btn btn-purple" onclick="openCustomEventModal()">➕ イベント登録</button>
+  <button class="btn btn-green" onclick="toggleScreenshotGuide()">📸 スクショ枠</button>
+  <button class="btn btn-gray" onclick="clearAll()">🗑 クリア</button>
+</div>
+
+<!-- SCHEDULE -->
+<div id="schedule-wrapper">
+  <div id="screenshot-guide"></div>
+  <div id="schedule">
+    <div class="schedule-title">BxDスケジュール</div>
+    <table id="sched-table">
+      <thead>
+        <tr id="header-row"></tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- EVENT EDIT MODAL -->
+<div class="modal-overlay" id="event-modal">
+  <div class="modal">
+    <h3 id="modal-title">📅 イベント設定</h3>
+    <div class="event-list" id="event-list"></div>
+    <div class="section-divider">＋ イベントを追加</div>
+    <div id="add-event-form">
+      <label>開始時間 (HH:MM)</label>
+      <input type="time" id="ev-start" placeholder="例: 20:00">
+      <label>終了時間 (HH:MM, 任意)</label>
+      <input type="time" id="ev-end" placeholder="未設定可">
+      <label>イベントアイコン</label>
+      <select id="ev-icon"></select>
+      <label>イベント名</label>
+      <select id="ev-name"></select>
+      <label>サブテキスト (任意, 例: エントリー締切)</label>
+      <input type="text" id="ev-sub" placeholder="例: エントリー締切">
+    </div>
+    <div class="modal-btn-row">
+      <button class="btn btn-blue" onclick="addEventToCell()">追加</button>
+      <button class="btn btn-gray" onclick="closeEventModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- TEMPLATE MODAL -->
+<div class="modal-overlay" id="template-modal">
+  <div class="modal">
+    <h3>📋 テンプレート管理</h3>
+    <div class="section-divider">保存済みテンプレート</div>
+    <div id="template-list"></div>
+    <div class="section-divider">現在のスケジュールを保存</div>
+    <label>テンプレート名</label>
+    <input type="text" id="tpl-name-input" placeholder="例: 通常週テンプレ">
+    <div class="modal-btn-row">
+      <button class="btn btn-green" onclick="saveTemplate()">💾 保存</button>
+      <button class="btn btn-gray" onclick="closeTemplateModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOM EVENT MODAL -->
+<div class="modal-overlay" id="custom-event-modal">
+  <div class="modal">
+    <h3>➕ カスタムイベント登録</h3>
+    <div id="custom-event-list"></div>
+    <div class="section-divider">新規登録</div>
+    <label>イベント名</label>
+    <input type="text" id="ce-name" placeholder="例: 新イベント名">
+    <label>アイコン (絵文字)</label>
+    <input type="text" id="ce-icon" placeholder="例: ✈️" maxlength="4">
+    <div class="modal-btn-row">
+      <button class="btn btn-blue" onclick="registerCustomEvent()">登録</button>
+      <button class="btn btn-gray" onclick="closeCustomEventModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================================================
+// DATA
+// ===================================================
+const DAYS = ['月','火','水','木','金','土','日'];
+const DAY_CLASSES = {
+  header: ['th-weekday','th-weekday','th-weekday','th-weekday','th-weekday','th-sat','th-sun'],
+  date:   ['date-weekday','date-weekday','date-weekday','date-weekday','date-weekday','date-sat','date-sun'],
+  cell:   ['cell-weekday','cell-weekday','cell-weekday','cell-weekday','cell-weekday','cell-sat','cell-sun'],
+};
+
+// Built-in events (icon, name, subtext hint)
+const DEFAULT_EVENTS = [
+  { icon: '🏜️', name: '砂漠の戦場', sub: '' },
+  { icon: '🧟', name: 'ゾンビ侵攻', sub: '' },
+  { icon: '🪖', name: '軍事演習', sub: '' },
+  { icon: '💰', name: '金脈攻防戦', sub: '' },
+  { icon: '🌀', name: 'アイスラ', sub: '' },
+  { icon: '🦈', name: 'シャークマウス', sub: '' },
+  { icon: '⚔️', name: '狭間の戦場', sub: 'エントリー締切' },
+  { icon: '😈', name: '暴走ボス1体目', sub: '' },
+  { icon: '😈', name: '暴走ボス2体目', sub: '' },
+  { icon: '😈', name: '暴走ボス3体目', sub: '' },
+  // Extra icons for future events
+  { icon: '✈️', name: '航空戦', sub: '' },
+  { icon: '💣', name: '爆撃作戦', sub: '' },
+  { icon: '🚀', name: 'ミサイル攻撃', sub: '' },
+  { icon: '🛡️', name: '防衛戦', sub: '' },
+  { icon: '🗡️', name: '奇襲作戦', sub: '' },
+  { icon: '🏰', name: '城攻め', sub: '' },
+  { icon: '🌊', name: '海上決戦', sub: '' },
+  { icon: '🔥', name: '焦土作戦', sub: '' },
+  { icon: '⚡', name: '電撃戦', sub: '' },
+  { icon: '🎯', name: '狙撃任務', sub: '' },
+];
+
+// State
+let scheduleData = {}; // key: "week-day" (0-13 row, 0-6 col) => [{start,end,icon,name,sub}]
+let customEvents = [];
+let templates = [];
+let startDate = null;
+let currentCell = null; // {weekIdx, dayIdx}
+let editEventIdx = null;
+let screenshotGuideActive = false;
+
+// ===== LOAD FROM LOCALSTORAGE =====
+function loadStorage() {
+  try {
+    const d = localStorage.getItem('bxd_data');
+    if (d) { const p = JSON.parse(d); scheduleData = p.scheduleData||{}; startDate = p.startDate ? new Date(p.startDate) : null; }
+    const c = localStorage.getItem('bxd_custom');
+    if (c) customEvents = JSON.parse(c);
+    const t = localStorage.getItem('bxd_templates');
+    if (t) templates = JSON.parse(t);
+  } catch(e) {}
+}
+function saveStorage() {
+  localStorage.setItem('bxd_data', JSON.stringify({ scheduleData, startDate: startDate ? startDate.toISOString() : null }));
+  localStorage.setItem('bxd_custom', JSON.stringify(customEvents));
+  localStorage.setItem('bxd_templates', JSON.stringify(templates));
+}
+
+// ===== ALL EVENTS LIST =====
+function allEvents() {
+  return [...DEFAULT_EVENTS, ...customEvents];
+}
+
+// ===== DATE HELPERS =====
+function getMondayOfWeek(d) {
+  const dt = new Date(d);
+  const day = dt.getDay(); // 0=Sun
+  const diff = (day === 0) ? -6 : 1 - day;
+  dt.setDate(dt.getDate() + diff);
+  return dt;
+}
+function formatDate(d) {
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+function addDays(d, n) {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+// ===== BUILD TABLE =====
+function buildTable() {
+  const headerRow = document.getElementById('header-row');
+  const tbody = document.getElementById('table-body');
+  headerRow.innerHTML = '';
+  tbody.innerHTML = '';
+
+  // Header
+  DAYS.forEach((d, i) => {
+    const th = document.createElement('th');
+    th.textContent = d;
+    th.className = DAY_CLASSES.header[i];
+    headerRow.appendChild(th);
+  });
+
+  // 2 weeks = rows for week1 date, week1 events, week2 date, week2 events
+  for (let w = 0; w < 2; w++) {
+    // Date row
+    const dateRow = document.createElement('tr');
+    dateRow.className = 'date-row';
+    for (let d = 0; d < 7; d++) {
+      const td = document.createElement('td');
+      td.className = DAY_CLASSES.date[d];
+      if (startDate) {
+        const cellDate = addDays(startDate, w * 7 + d);
+        td.textContent = formatDate(cellDate);
+      } else {
+        td.textContent = '--/--';
+      }
+      dateRow.appendChild(td);
+    }
+    tbody.appendChild(dateRow);
+
+    // Event row
+    const evRow = document.createElement('tr');
+    evRow.className = 'event-row';
+    for (let d = 0; d < 7; d++) {
+      const td = document.createElement('td');
+      td.className = DAY_CLASSES.cell[d];
+      td.style.minHeight = '70px';
+      td.dataset.week = w;
+      td.dataset.day = d;
+      td.addEventListener('click', () => openEventModal(w, d));
+      renderCellContent(td, w, d);
+      evRow.appendChild(td);
+    }
+    tbody.appendChild(evRow);
+  }
+}
+
+function renderCellContent(td, w, d) {
+  td.innerHTML = '';
+  const key = `${w}-${d}`;
+  const events = scheduleData[key] || [];
+
+  events.forEach(ev => {
+    const item = document.createElement('div');
+    item.className = 'event-item';
+
+    const timeStr = ev.start ? (ev.end ? `${ev.start}～${ev.end}` : ev.start) : '';
+
+    item.innerHTML = `
+      <span class="event-icon">${ev.icon||'❓'}</span>
+      <span class="event-text">
+        ${timeStr ? `<div class="event-time">${timeStr}</div>` : ''}
+        <div class="event-name">${ev.name||''}</div>
+        ${ev.sub ? `<div class="event-sub">${ev.sub}</div>` : ''}
+      </span>
+    `;
+    td.appendChild(item);
+  });
+
+  if (events.length === 0) {
+    const hint = document.createElement('div');
+    hint.className = 'cell-add-hint';
+    hint.textContent = 'タップして追加';
+    td.appendChild(hint);
+  }
+}
+
+function refreshAllCells() {
+  document.querySelectorAll('.event-row td').forEach(td => {
+    const w = parseInt(td.dataset.week);
+    const d = parseInt(td.dataset.day);
+    if (!isNaN(w) && !isNaN(d)) renderCellContent(td, w, d);
+  });
+}
+
+function refreshDateCells() {
+  document.querySelectorAll('.date-row td').forEach((td, idx) => {
+    const w = Math.floor(idx / 7);
+    const d = idx % 7;
+    if (startDate) {
+      const cellDate = addDays(startDate, w * 7 + d);
+      td.textContent = formatDate(cellDate);
+    } else {
+      td.textContent = '--/--';
+    }
+  });
+}
+
+// ===== DATE INPUT =====
+document.getElementById('start-date').addEventListener('change', function() {
+  const val = this.value;
+  if (!val) return;
+  const d = new Date(val + 'T00:00:00');
+  const dow = d.getDay();
+  const warn = document.getElementById('date-warning');
+  if (dow !== 1) {
+    warn.textContent = '⚠️ 月曜日ではありません（曜日: ' + ['日','月','火','水','木','金','土'][dow] + '）';
+  } else {
+    warn.textContent = '';
+    startDate = d;
+    saveStorage();
+    refreshDateCells();
+  }
+});
+
+// Pre-fill date input if loaded
+function initDateInput() {
+  if (startDate) {
+    const y = startDate.getFullYear();
+    const m = String(startDate.getMonth()+1).padStart(2,'0');
+    const dd = String(startDate.getDate()).padStart(2,'0');
+    document.getElementById('start-date').value = `${y}-${m}-${dd}`;
+  }
+}
+
+// ===== EVENT MODAL =====
+function openEventModal(w, d) {
+  currentCell = { w, d };
+  editEventIdx = null;
+  const modal = document.getElementById('event-modal');
+  const key = `${w}-${d}`;
+  const dateStr = startDate ? formatDate(addDays(startDate, w*7+d)) : '';
+  document.getElementById('modal-title').textContent = `📅 ${dateStr} ${DAYS[d]}曜日`;
+  renderEventList();
+  populateIconSelect();
+  populateNameSelect();
+  clearAddForm();
+  modal.classList.add('active');
+}
+
+function closeEventModal() {
+  document.getElementById('event-modal').classList.remove('active');
+  currentCell = null;
+}
+
+function renderEventList() {
+  const key = `${currentCell.w}-${currentCell.d}`;
+  const events = scheduleData[key] || [];
+  const list = document.getElementById('event-list');
+  list.innerHTML = '';
+  if (events.length === 0) {
+    list.innerHTML = '<div style="color:#607080;font-size:12px;">イベントなし</div>';
+    return;
+  }
+  events.forEach((ev, idx) => {
+    const item = document.createElement('div');
+    item.className = 'event-list-item';
+    const timeStr = ev.start ? (ev.end ? `${ev.start}～${ev.end}` : ev.start) : '';
+    item.innerHTML = `
+      <span class="icon">${ev.icon||'❓'}</span>
+      <span class="info">
+        <span style="color:#80c8ff;font-size:11px;">${timeStr}</span>
+        <span style="margin-left:4px;">${ev.name}</span>
+        ${ev.sub ? `<span style="color:#90aacc;font-size:10px;margin-left:4px;">${ev.sub}</span>` : ''}
+      </span>
+      <button class="edit-btn" onclick="startEditEvent(${idx})">編集</button>
+      <button class="del-btn" onclick="deleteEvent(${idx})">削除</button>
+    `;
+    list.appendChild(item);
+  });
+}
+
+function startEditEvent(idx) {
+  editEventIdx = idx;
+  const key = `${currentCell.w}-${currentCell.d}`;
+  const ev = (scheduleData[key]||[])[idx];
+  if (!ev) return;
+  document.getElementById('ev-start').value = ev.start||'';
+  document.getElementById('ev-end').value = ev.end||'';
+  document.getElementById('ev-sub').value = ev.sub||'';
+  // set icon select
+  const iconSel = document.getElementById('ev-icon');
+  const nameSel = document.getElementById('ev-name');
+  // find matching event
+  const all = allEvents();
+  const match = all.findIndex(e => e.icon === ev.icon && e.name === ev.name);
+  if (match >= 0) {
+    iconSel.value = match;
+    nameSel.value = match;
+  }
+}
+
+function deleteEvent(idx) {
+  const key = `${currentCell.w}-${currentCell.d}`;
+  if (!scheduleData[key]) return;
+  scheduleData[key].splice(idx, 1);
+  saveStorage();
+  renderEventList();
+  const td = document.querySelector(`td[data-week="${currentCell.w}"][data-day="${currentCell.d}"]`);
+  if (td) renderCellContent(td, currentCell.w, currentCell.d);
+}
+
+function addEventToCell() {
+  const key = `${currentCell.w}-${currentCell.d}`;
+  const start = document.getElementById('ev-start').value;
+  const end = document.getElementById('ev-end').value;
+  const sub = document.getElementById('ev-sub').value;
+  const idx = parseInt(document.getElementById('ev-name').value);
+  const all = allEvents();
+  const ev = all[idx] || {};
+
+  const newEv = {
+    start: start||'',
+    end: end||'',
+    icon: ev.icon||'❓',
+    name: ev.name||'',
+    sub: sub||ev.sub||''
+  };
+
+  if (!scheduleData[key]) scheduleData[key] = [];
+
+  if (editEventIdx !== null) {
+    scheduleData[key][editEventIdx] = newEv;
+    editEventIdx = null;
+  } else {
+    if (scheduleData[key].length >= 5) {
+      alert('1セルに登録できるイベントは最大5件です。');
+      return;
+    }
+    scheduleData[key].push(newEv);
+  }
+
+  // Sort by start time
+  scheduleData[key].sort((a, b) => {
+    if (!a.start) return 1;
+    if (!b.start) return -1;
+    return a.start.localeCompare(b.start);
+  });
+
+  saveStorage();
+  renderEventList();
+  clearAddForm();
+  const td = document.querySelector(`td[data-week="${currentCell.w}"][data-day="${currentCell.d}"]`);
+  if (td) renderCellContent(td, currentCell.w, currentCell.d);
+}
+
+function clearAddForm() {
+  document.getElementById('ev-start').value = '';
+  document.getElementById('ev-end').value = '';
+  document.getElementById('ev-sub').value = '';
+  editEventIdx = null;
+}
+
+function populateIconSelect() {
+  const sel = document.getElementById('ev-icon');
+  sel.innerHTML = '';
+  allEvents().forEach((ev, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${ev.icon} ${ev.name}`;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', function() {
+    document.getElementById('ev-name').value = this.value;
+    const ev = allEvents()[parseInt(this.value)];
+    if (ev && ev.sub) document.getElementById('ev-sub').value = ev.sub;
+  });
+}
+
+function populateNameSelect() {
+  const sel = document.getElementById('ev-name');
+  sel.innerHTML = '';
+  allEvents().forEach((ev, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${ev.icon} ${ev.name}`;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', function() {
+    document.getElementById('ev-icon').value = this.value;
+    const ev = allEvents()[parseInt(this.value)];
+    if (ev && ev.sub) document.getElementById('ev-sub').value = ev.sub;
+  });
+}
+
+// ===== TEMPLATE MODAL =====
+function openTemplateModal() {
+  renderTemplateList();
+  document.getElementById('template-modal').classList.add('active');
+}
+function closeTemplateModal() {
+  document.getElementById('template-modal').classList.remove('active');
+}
+function renderTemplateList() {
+  const list = document.getElementById('template-list');
+  list.innerHTML = '';
+  if (templates.length === 0) {
+    list.innerHTML = '<div style="color:#607080;font-size:12px;">保存済みテンプレートなし</div>';
+    return;
+  }
+  templates.forEach((tpl, i) => {
+    const item = document.createElement('div');
+    item.className = 'tpl-item';
+    const evCount = Object.values(tpl.data).reduce((s,a)=>s+a.length, 0);
+    item.innerHTML = `
+      <div class="tpl-info">
+        <div class="tpl-name">${tpl.name}</div>
+        <div class="tpl-events">イベント合計: ${evCount}件</div>
+      </div>
+      <button class="btn btn-blue" style="font-size:11px;padding:4px 8px;" onclick="applyTemplate(${i})">適用</button>
+      <button class="btn btn-gray" style="font-size:11px;padding:4px 8px;" onclick="deleteTemplate(${i})">削除</button>
+    `;
+    list.appendChild(item);
+  });
+}
+function saveTemplate() {
+  const name = document.getElementById('tpl-name-input').value.trim();
+  if (!name) { alert('テンプレート名を入力してください'); return; }
+  templates.push({ name, data: JSON.parse(JSON.stringify(scheduleData)) });
+  saveStorage();
+  renderTemplateList();
+  document.getElementById('tpl-name-input').value = '';
+  alert('テンプレートを保存しました！');
+}
+function applyTemplate(i) {
+  if (!confirm('現在のスケジュールに上書きしますか？')) return;
+  scheduleData = JSON.parse(JSON.stringify(templates[i].data));
+  saveStorage();
+  refreshAllCells();
+  closeTemplateModal();
+}
+function deleteTemplate(i) {
+  if (!confirm('このテンプレートを削除しますか？')) return;
+  templates.splice(i, 1);
+  saveStorage();
+  renderTemplateList();
+}
+
+// ===== CUSTOM EVENT MODAL =====
+function openCustomEventModal() {
+  renderCustomEventList();
+  document.getElementById('custom-event-modal').classList.add('active');
+}
+function closeCustomEventModal() {
+  document.getElementById('custom-event-modal').classList.remove('active');
+}
+function renderCustomEventList() {
+  const list = document.getElementById('custom-event-list');
+  list.innerHTML = '';
+  if (customEvents.length === 0) {
+    list.innerHTML = '<div style="color:#607080;font-size:12px;">カスタムイベントなし</div>';
+    return;
+  }
+  customEvents.forEach((ev, i) => {
+    const item = document.createElement('div');
+    item.className = 'ce-item';
+    item.innerHTML = `
+      <span class="icon">${ev.icon}</span>
+      <span class="ce-name">${ev.name}</span>
+      <button class="ce-del" onclick="deleteCustomEvent(${i})">削除</button>
+    `;
+    list.appendChild(item);
+  });
+}
+function registerCustomEvent() {
+  const name = document.getElementById('ce-name').value.trim();
+  const icon = document.getElementById('ce-icon').value.trim() || '🎮';
+  if (!name) { alert('イベント名を入力してください'); return; }
+  customEvents.push({ icon, name, sub: '' });
+  saveStorage();
+  renderCustomEventList();
+  document.getElementById('ce-name').value = '';
+  document.getElementById('ce-icon').value = '';
+  alert(`「${icon} ${name}」を登録しました！`);
+}
+function deleteCustomEvent(i) {
+  if (!confirm('このカスタムイベントを削除しますか？')) return;
+  customEvents.splice(i, 1);
+  saveStorage();
+  renderCustomEventList();
+}
+
+// ===== SCREENSHOT GUIDE =====
+function toggleScreenshotGuide() {
+  screenshotGuideActive = !screenshotGuideActive;
+  document.getElementById('screenshot-guide').style.display = screenshotGuideActive ? 'block' : 'none';
+}
+
+// ===== CLEAR =====
+function clearAll() {
+  if (!confirm('全イベントをクリアしますか？')) return;
+  scheduleData = {};
+  saveStorage();
+  refreshAllCells();
+}
+
+// ===== INIT =====
+loadStorage();
+buildTable();
+initDateInput();
+</script>
+</body>
+</html>
